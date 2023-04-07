@@ -1,22 +1,25 @@
-% Calculate streamwise force and power coefficients
-function [cp, cfx] = calc_coefficients(alt, M, prf)
+% Test file for git repo
+
+
+function [cp, cfx] = calc_coefficients(alt, mach, fpr)
     % Air
     gamma = 1.4;
     R = 287.05;  % J/ kg-K
+    Cp = gamma * R  / (gamma - 1);
 
     % free stream conditions
-    [pa, Ta, rho] = isa_func(alt);
+    [pa, Ta, ~] = isa_func(alt);
     T0a = Ta * (1 + (gamma - 1) / 2 * M^2);
     p0a = pa * (1 + (gamma - 1) / 2 * M^2)^(gamma / (gamma - 1));
-    u = M * (gamma * R * Ta)^0.5;
+    u = mach * (gamma * R * Ta)^0.5;
     
     % isentropic diffuser 
     T01 = T0a;
     p01 = p0a;
     
     % fan pressure ratio
-    p02 = p01 * prf;
-    T02 = T01 * (1 + (prf^((gamma - 1) / gamma) - 1));
+    p02 = p01 * p_rf;
+    T02 = T01 * (1 + (p_rf^((gamma - 1) / gamma) - 1));
     
     % isentropic nozzle
     T0e = T02;
@@ -28,13 +31,12 @@ function [cp, cfx] = calc_coefficients(alt, M, prf)
         Me = 1;
         pe = p0e * (1 + ((gamma - 1) / 2) * Me^2)^(-1 * gamma / (gamma -1));
     else
-        fprintf('Fan nozzle is not choked. M_e = %.2f \n', Me)
+        fprintf('Fan nozzle is not choked. M_9 = %.2f \n', M9)
     end
     Te = T0e / (1 + ((gamma - 1) / 2) * Me^2);
     ue = Me * (gamma * R  * Te)^0.5;
     De = Me / ((1 + ((gamma - 1) / 2) * Me^2)^(0.5 * (gamma + 1) / (gamma - 1)));
 
-    cp = ((De * p0e * gamma^0.5) / (R * T0e)^0.5) * (gamma * R / (gamma - 1)) * T01 * (prf - 1)^((gamma - 1) / gamma) / (0.5 * rho * u^3);
-    cfx = (((De * p0e * gamma^0.5) / (R * T0e)^0.5) * (ue - u) + (pe - pa)) / (0.5 * rho * u^2);
-end
+    cp = ((De * p0e * gamma^0.5) / (R * T0e)^0.5) * (gamma * R / (gamma - 1)) * T01 * (fpr - 1)^((gamma - 1) / gamma) / (0.5 * rho * u)
 
+end
