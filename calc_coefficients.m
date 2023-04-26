@@ -1,5 +1,5 @@
 % Calculate streamwise force and power coefficients
-function [cp, cfx] = calc_coefficients(alt, M, prf)
+function [cp, cfx, station_mach] = calc_coefficients(alt, M, prf, Ad, An)
     % Air
     gamma = 1.4;
     R = 287.05;  % J/ kg-K
@@ -36,5 +36,20 @@ function [cp, cfx] = calc_coefficients(alt, M, prf)
 
     cp = ((De * p0e * gamma^0.5) / (R * T0e)^0.5) * (gamma * R / (gamma - 1)) * T01 * (prf - 1)^((gamma - 1) / gamma) / (0.5 * rho * u^3);
     cfx = (((De * p0e * gamma^0.5) / (R * T0e)^0.5) * (ue - u) + (pe - pa)) / (0.5 * rho * u^2);
+    
+    % Calculate Mach and Areas at each station
+    % Station 2
+    D2 = De * An;
+    M2 = calc_M(D2, gamma);
+
+    % Station 1 
+    M1 = M2;
+    D1 = calc_D(M1, gamma);
+
+    % Station Inlet
+    Di = D1 * Ad;
+    Mi = calc_M(Di, gamma);
+
+    station_mach = [Mi, M1, M2, Me];
 end
 
