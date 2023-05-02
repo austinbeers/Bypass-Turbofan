@@ -6,6 +6,8 @@ from atmosphere import isa
 from numpy import linspace, array, interp
 from matplotlib.pyplot import plot, show, xlabel, ylabel, legend, title
 from math import pi
+from scipy.optimize import root
+from combined_heat_pressure_drop import hx_sys
 
 # def calc_coefficients(x0, *args):
 #     # Extract inputs
@@ -206,8 +208,14 @@ if __name__ == "__main__":
     # Generate initial guess
     alt = 10972  # m
     mach = 0.78
+    gamma = 1.4
+    cp = 1004  # [J/kg-K]
+    R = 287
+    pa, p0a, Ta, T0a, rhoa = isa(alt, mach)
+    ua = mach * (gamma * R * Ta) ** 0.5
 
     # Area ratios
+    a_fan = 2.6
     # An = Ae / A2
     An = 1.0
     # Ad = 1 / Ai
@@ -228,6 +236,8 @@ if __name__ == "__main__":
     m_dot = 3 * a_fan * p_t * 1.4 ** 0.5 * D_fan / (R * T_t) ** 0.5
     print('m_dot: {} kg/s'.format(m_dot))
 
+    # Generate x0 for hx
+
     for prf in prf_var:
         # Calculate coefficients
         cp, cfx, station_mach = calc_coefficients(alt, mach, prf)
@@ -238,10 +248,50 @@ if __name__ == "__main__":
         power_plot.append(2 * power / 1000)
         thrust_plot.append(thrust / 1000)
 
+    # alpha_var = linspace(0.01, 0.2, 12)
+    alpha = 0.05
+    A_hx = alpha * a_fan
+    beta = 600
+    cfx_hx_plot = []
+    fnet_hx_plot = []
+    for power in power_plot:
+        p_loss = 0.43 * power * 1000
+        x0 = [rhoa * ua * A_hx, Ta, pa, ua, rhoa, 1.2 * Ta, 0.8 * pa, 1.2 * ua, 0.8 * rhoa, 1.2 * T0a, 0.8 * p0a, Ta,
+              pa, ua, rhoa, 4.0, 0.9, 300]
+        sol = root(hx_sys, x0, args=(alt, mach, A_hx, beta, p_loss), tol=1E-8)
+
+        # Extract Outputs
+        mdot = sol.x[0]
+        T1 = sol.x[1]
+        p1 = sol.x[2]
+        u1 = sol.x[3]
+        rho1 = sol.x[4]
+        T2 = sol.x[5]
+        p2 = sol.x[6]
+        u2 = sol.x[7]
+        rho2 = sol.x[8]
+        T02 = sol.x[9]
+        p02 = sol.x[10]
+        Te = sol.x[11]
+        pe = sol.x[12]
+        ue = sol.x[13]
+        rhoe = sol.x[14]
+        NTU = sol.x[15]
+        epsilon = sol.x[16]
+        Th_in = sol.x[17]
+
+        # Net Force
+        fnet = mdot * (ue - ua) + A_hx * (pe - pa)
+        fnet_hx_plot.append(fnet / 1000)
+        cfx_hx = fnet / (0.5 * rhoa * ua**2 * a_fan)
+        cfx_hx_plot.append(cfx_hx)
+
+
     # Plot
-    plot(cfx_plot, cp_plot, label='Turbofan')
-    xlabel(r'Thrust Coefficient, $C_{F_{x}}$')
-    ylabel(r'Power Coefficient, $C_{P}$')
+    plot(cp_plot, cfx_plot, label='Turbofan')
+    plot(cp_plot, cfx_hx_plot, color='tab:orange', label='Heat Exchanger')
+    ylabel(r'Thrust Coefficient, $C_{F_{x}}$')
+    xlabel(r'Power Coefficient, $C_{P}$')
     legend()
     show()
 
@@ -257,6 +307,7 @@ if __name__ == "__main__":
     p_737 = interp(drag_737, thrust_plot, power_plot)
     plot(power_plot, thrust_plot, label='Turbofan')
     plot(p_737, drag_737, marker='o', color='tab:red', ls='None', label='B737-800 Cruise')
+    plot(power_plot, fnet_hx_plot, label='Heat Exchanger')
     # plot(power_plot, thrust_plot_hx, label='Heat Exchanger')
     xlabel(r'Power [kW]')
     ylabel(r'Thrust, [kN]')
@@ -264,6 +315,13 @@ if __name__ == "__main__":
     legend()
     show()
 
+    # Plot Heat Exchanger Power
+    plot(power_plot, array(fnet_hx_plot) * 1000, color='tab:orange', label='Heat Exchanger')
+    xlabel(r'Engine Power [kW]')
+    ylabel(r'Thrust, [N]')
+    title('One-Engine')
+    legend()
+    show()
 
 
 

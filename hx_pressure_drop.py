@@ -12,6 +12,7 @@ def hx(x, *args):
     # Geometry parameters
     A = args[2]  # m^2
     beta = args[3]  # [1/m]
+    m_dot_h = args[4]
 
     # Inputs
     mdot = x[0]
@@ -69,7 +70,6 @@ def hx(x, *args):
     Tc_in = T1  # [K] Inlet temperature
     Th_in = 394  # [K] Temperature of working fluid
 
-    m_dot_h = 2  # [kg/s] Mass flow rate of working fluid
     Ch = m_dot_h * Cph
 
     Cc = mdot * Cpc
@@ -273,22 +273,22 @@ if __name__ == "__main__":
     pa, p0a, Ta, T0a, rhoa = isa(alt, mach)
     ua = mach * (gamma * R * Ta) ** 0.5
 
-    a_fan = 2.6
-    alpha_var = linspace(0.01, 0.2, 12)
-    beta_var = linspace(50, 1000, 11)
+    beta_var = linspace(100, 800, 40)  # [1/m^2]
+    area_var = linspace(0.05, 0.3, 50)  # [m^2]
 
-    alpha_plot, beta_plot = meshgrid(alpha_var, beta_var)
-    q_plot = zeros(shape(alpha_plot))
-    mache_plot = zeros(shape(alpha_plot))
-    net_force_plot = zeros(shape(alpha_plot))
-    phi_plot = zeros(shape(alpha_plot))
-    for A_idx in range(0, len(alpha_var)):
-        A_hx = alpha_var[A_idx] * a_fan  # [m^2]
+    area_plot, beta_plot = meshgrid(area_var, beta_var)
+    epsilon_plot = zeros(shape(area_plot))
+    q_plot = zeros(shape(area_plot))
+    mache_plot = zeros(shape(area_plot))
+    phi_plot = zeros(shape(area_plot))
+    m_dot_h = 2  # [kg/s]
+    for A_idx in range(0, len(area_var)):
+        A_hx = area_var[A_idx]  # [m^2]
         for beta_idx in range(0, len(beta_var)):
             beta = beta_var[beta_idx]
             # Inputs -  [mdot, T1, p1, u1, rho1, T2, p2, u2, rho2, T02, p02, Te, pe, ue, rhoe, NTU, epsilon, Q]
             x0 = [rhoa * ua * A_hx, Ta, pa, ua, rhoa, 1.2*Ta, 0.8*pa, 1.2*ua, 0.8*rhoa, 1.2*T0a, 0.8*p0a, Ta, pa, ua, rhoa, 4.0, 0.9, 100000]
-            sol = root(hx, x0, args=(alt, mach, A_hx, beta), tol=1E-8)
+            sol = root(hx, x0, args=(alt, mach, A_hx, beta, m_dot_h), tol=1E-8)
 
             # Extract Outputs
             mdot = sol.x[0]
@@ -321,127 +321,20 @@ if __name__ == "__main__":
 
             q_plot[beta_idx][A_idx] = q / 1000  # [kW]
             mache_plot[beta_idx][A_idx] = M_e  # [-]
-            net_force_plot[beta_idx][A_idx] = f_net  # [N]
             phi_plot[beta_idx][A_idx] = (p1 - p2) / (0.5 * rho1 * u1**2)
 
     # Plot Contours
-    contourf(alpha_plot, beta_plot, q_plot)
+    contourf(area_plot, beta_plot, mache_plot)
     colorbar()
-    xlabel(r'Area Ratio, $\alpha$')
+    xlabel(r'Area [$m^2$]')
     ylabel(r'$\beta$ [1/$m^2$]')
-    title('Heat Transfer [kW]')
+    title(r'Exit Mach, $M_e$, for $\dot{m}_h = 2 kg/s$')
     show()
 
-    contourf(alpha_plot, beta_plot, mache_plot)
+    contourf(area_plot, beta_plot, phi_plot)
     colorbar()
-    xlabel(r'Area Ratio, $\alpha$')
-    ylabel(r'$\beta$ [1/$m^2$]')
-    title('Exit Mach')
-    show()
-
-    contourf(alpha_plot, beta_plot, net_force_plot)
-    colorbar()
-    xlabel(r'Area Ratio, $\alpha$')
+    xlabel(r'Area [$m^2$]')
     ylabel(r'$\beta$ [1/$m$]')
-    title('Net Force [N]')
+    title(r'Pressure Drop, $\Phi$, for $\dot{m}_h = 2 kg/s$')
     show()
-
-    contourf(alpha_plot, beta_plot, phi_plot)
-    colorbar()
-    xlabel(r'Area Ratio, $\alpha$')
-    ylabel(r'$\beta$ [1/$m$]')
-    title(r'Pressure Drop, $\Phi$')
-    show()
-
-    # Fixed Q - Generate initial guess
-    alt = 10972  # m
-    mach = 0.78
-    gamma = 1.4
-    cp = 1004  # [J/kg-K]
-    R = 287
-    pa, p0a, Ta, T0a, rhoa = isa(alt, mach)
-    ua = mach * (gamma * R * Ta) ** 0.5
-
-    a_fan = 2.6
-    alpha_var = linspace(0.03, 0.2, 12)
-    beta_var = linspace(50, 600, 11)
-    Q_sys = 140000  # [W]
-
-    alpha_plot, beta_plot = meshgrid(alpha_var, beta_var)
-    Th_in_plot = zeros(shape(alpha_plot))
-    mache_plot = zeros(shape(alpha_plot))
-    net_force_plot = zeros(shape(alpha_plot))
-    phi_plot = zeros(shape(alpha_plot))
-    for A_idx in range(0, len(alpha_var)):
-        A_hx = alpha_var[A_idx] * a_fan  # [m^2]
-        for beta_idx in range(0, len(beta_var)):
-            beta = beta_var[beta_idx]
-            # Inputs -  [mdot, T1, p1, u1, rho1, T2, p2, u2, rho2, T02, p02, Te, pe, ue, rhoe, NTU, epsilon, Q]
-            x0 = [rhoa * ua * A_hx, Ta, pa, ua, rhoa, 1.2 * Ta, 0.8 * pa, 1.2 * ua, 0.8 * rhoa, 1.2 * T0a, 0.8 * p0a,
-                  Ta, pa, ua, rhoa, 4.0, 0.9, 300]
-            sol = root(hx_sys, x0, args=(alt, mach, A_hx, beta, Q_sys), tol=1E-8)
-
-            # Extract Outputs
-            mdot = sol.x[0]
-            T1 = sol.x[1]
-            p1 = sol.x[2]
-            u1 = sol.x[3]
-            rho1 = sol.x[4]
-            T2 = sol.x[5]
-            p2 = sol.x[6]
-            u2 = sol.x[7]
-            rho2 = sol.x[8]
-            T02 = sol.x[9]
-            p02 = sol.x[10]
-            Te = sol.x[11]
-            pe = sol.x[12]
-            ue = sol.x[13]
-            rhoe = sol.x[14]
-            NTU = sol.x[15]
-            epsilon = sol.x[16]
-            Th_in = sol.x[17]
-
-            # Net Force
-            f_net = mdot * (ue - ua) + A_hx * (pe - pa)
-            print('Net Force: {} N'.format(f_net))
-
-            # Mach at Exit
-            D = mdot * (R * T02) ** 0.5 / A_hx / p02 / gamma ** 0.5
-            M_e = calc_M(D, gamma)
-            print('Exit Mach: {}'.format(M_e))
-
-            Th_in_plot[beta_idx][A_idx] = Th_in # [kW]
-            mache_plot[beta_idx][A_idx] = M_e  # [-]
-            net_force_plot[beta_idx][A_idx] = f_net  # [N]
-            phi_plot[beta_idx][A_idx] = (p1 - p2) / (0.5 * rho1 * u1 ** 2)
-
-    # Plot Contours
-    contourf(alpha_plot, beta_plot, Th_in_plot)
-    colorbar()
-    xlabel(r'Area Ratio, $\alpha$')
-    ylabel(r'$\beta$ [1/$m^2$]')
-    title('Hot Temperature In [K]')
-    show()
-
-    contourf(alpha_plot, beta_plot, mache_plot)
-    colorbar()
-    xlabel(r'Area Ratio, $\alpha$')
-    ylabel(r'$\beta$ [1/$m^2$]')
-    title('Exit Mach')
-    show()
-
-    contourf(alpha_plot, beta_plot, net_force_plot)
-    colorbar()
-    xlabel(r'Area Ratio, $\alpha$')
-    ylabel(r'$\beta$ [1/$m$]')
-    title('Net Force [N]')
-    show()
-
-    contourf(alpha_plot, beta_plot, phi_plot)
-    colorbar()
-    xlabel(r'Area Ratio, $\alpha$')
-    ylabel(r'$\beta$ [1/$m$]')
-    title(r'Pressure Drop, $\Phi$')
-    show()
-
 
